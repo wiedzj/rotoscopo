@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@1.2"></script>
+        <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/body-pix@2.0"></script>
+        <script src="FileSaver.min.js"></script>
+        <script src="scripts/LZWEncoder.js"></script>
+        <script src="scripts/NeuQuant.js"></script>
+        <script src="scripts/GIFEncoder.js"></script>
+        <script src="scripts/b64.js"></script>
+        <script src="scripts/naturalcompare.js"></script>
+        <style>
+            * {margin: 10px;}
+            #control {display: flex;align-items: center; justify-content: center;}
+            #images-container {display: block;}
+            .text {text-align: center; font-family: Arial, Helvetica, sans-serif;}
+        </style>
+        <title>RotoscopoTool</title>
+     </head>
+    
+      <body>
+            <div>
+                <h1 class="text">Upload frames to rotoscope them!</h1>
+                <h4 class="text">The filenames should be ordered alphabeticaly</h4>
+            </div>
+            <div id="control">
+                <input type="file" id="input" multiple>
+                <button id="download" disabled hidden>Generating...</button>
+            </div>
+            <div id="images-container"></div>
+      </body>
+      <script>
+            // Color (RGB) scheme per limb
+            const color_scheme = [
+                [158, 219, 247], //face
+                [158, 219, 247], //face
+                [242, 125, 112], // leg
+                [242, 125, 112], // leg
+                [242, 125, 112], // leg
+                [242, 125, 112], // leg
+                [242, 125, 112], // leg
+                [242, 125, 112], // leg
+                [242, 125, 112], // leg
+                [44, 46, 107], // foot
+                [242, 125, 112], // leg
+                [44, 46, 107], // foot
+                [243, 226, 136], // torso
+                [243, 226, 136], // torso
+                [243, 226, 136], // arm
+                [243, 226, 136], // arm
+                [243, 226, 136], // arm
+                [243, 226, 136], // arm
+                [243, 226, 136], // arm
+                [243, 226, 136], // arm
+                [243, 226, 136], // arm
+                [158, 219, 247], // hand
+                [243, 226, 136], // arm
+                [158, 219, 247] // hand
+            ]
+
+            // This function 
+            async function loadAndPredict(image, fileListLength) {
+                const net = await bodyPix.load({
+                    architecture: 'MobileNetV1',
+                    outputStride: 16,
+                    multiplier: 0.75,
+                    quantBytes: 2
+                });
+            
+                const segmentation = await net.segmentMultiPersonParts(image, {
+                    flipHorizontal: false,
+                    internalResolution: 'high',
+                    segmentationThreshold: 0.5,
+                    maxDetections: 10,
+                    scoreThreshold: 0.2,
+                    nmsRadius: 20,
+                    minKeypointScore: 0.3,
+                    refineSteps: 10
+                });
+
+                const coloredPartImage = bodyPix.toColoredPartMask(segmentation);
+                const opacity = 1.0;
+                const flipHorizontal = false;
+                const maskBlurAmount = 0;
+
+                let canvas = document.createElement("canvas");
+            
+                document.getElementById("images-container").appendChild(canvas);
+                
+                bodyPix.drawMask(canvas, image, coloredPartImage, opacity, maskBlurAmount,flipHorizontal);
+                canvases.splice(parseInt(image.name), 0, canvas);
+                //canvas.hidden = true;
+
+                // Show the progress
+                numberOfProcessedImages++;
+                progress = "Generating... (" + numberOfProcessedImages + "/" + fileListLength + ")";
+                downloadButton.innerHTML = progress;
+                
+                // If all the images are processed, the download button is enabled
+                if(numberOfProcessedImages == fileListLength){
+                    downloadButton.innerHTML = "Download GIF"
+                    downloadButton.disabled = false;
+                }
+            }
+
+            // Array where the uploaded files are stored as images
+            let images = [];
+            const downloadButton = document.getElementById("download");
+
+            // File input button
+            const inputElement = document.getElementById("input");
+            inputElement.addEventListener("change", handleFiles, true);
+
+            // Array of canvases where the processed images are stored
+            let canvases = [];
+
+            let numberOfProcessedImages = 0;
+
+            // This function is called after the files are uploaded
+            function handleFiles() {
+                inputElement.hidden = true;
+                downloadButton.hidden = false;
+                const fileList = this.files;
+                const fileArray = Array.from(fileList);
+
+                // Sort the array by name (0.png, 1.png, 2.png etc.)
+                fileArray.sort(function(a, b) {
+                    return String.naturalCompare(a.name, b.name)
+                });
+
+                // Create an image object for each file
+                for (i = 0; i < fileArray.length; i++ ){
+                    images[i] = new Image();
+                    images[i].src = URL.createObjectURL(fileArray[i])
+                    images[i].name = i;
+                    loadAndPredict(images[i], fileArray.length)
+                }
+            }
+
+            downloadButton.addEventListener("click", saveGif);
+
+            // Save the canvases as a gif (edited), and the images as a gif (original)
+            function saveGif(){
+                const encoder = new GIFEncoder();
+                encoder.setRepeat(0);
+                encoder.setDelay(50);
+                encoder.start();
+
+                for(i = 0; i < canvases.length; i++){
+                    encoder.addFrame(canvases[i].getContext("2d"));
+                }
+
+                encoder.finish();
+                encoder.download("animation.gif");
+                encoder.start();
+
+                for(i = 0; i < images.length; i++){
+                    var canvas = document.createElement('canvas');
+                    var context = canvas.getContext('2d');
+                    var img = images[i];
+                    canvas.width = img.width;
+                    canvas.height = img.height;
+                    context.drawImage(img, 0, 0 );
+                    encoder.addFrame(context);
+                }
+                encoder.finish();
+                encoder.download("original.gif");
+            }
+            
+      </script>
+    </html>
