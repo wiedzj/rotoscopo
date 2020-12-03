@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@1.2"></script>
         <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/body-pix@2.0"></script>
-        <script src="FileSaver.min.js"></script>
+        <script src="scripts/FileSaver.min.js"></script>
         <script src="scripts/LZWEncoder.js"></script>
         <script src="scripts/NeuQuant.js"></script>
         <script src="scripts/GIFEncoder.js"></script>
@@ -23,7 +23,7 @@
       <body>
             <div>
                 <h1 class="text">Upload frames to rotoscope them!</h1>
-                <h4 class="text">The filenames should be ordered alphabeticaly</h4>
+                <h4 class="text">The filenames should be in alphabetical order</h4>
             </div>
             <div id="control">
                 <input type="file" id="input" multiple>
@@ -86,6 +86,8 @@
                 const maskBlurAmount = 0;
 
                 let canvas = document.createElement("canvas");
+                canvas.id = image.name;
+                console.log(canvas.id);
             
                 document.getElementById("images-container").appendChild(canvas);
                 
@@ -103,6 +105,12 @@
                     downloadButton.innerHTML = "Download GIF"
                     downloadButton.disabled = false;
                 }
+            }
+
+            function sortCanvases(){
+                canvases.sort(function(a, b) {
+                    return String.naturalCompare(a.id, b.id)
+                });
             }
 
             // Array where the uploaded files are stored as images
@@ -123,7 +131,7 @@
                 inputElement.hidden = true;
                 downloadButton.hidden = false;
                 const fileList = this.files;
-                const fileArray = Array.from(fileList);
+                let fileArray = Array.from(fileList);
 
                 // Sort the array by name (0.png, 1.png, 2.png etc.)
                 fileArray.sort(function(a, b) {
@@ -143,6 +151,7 @@
 
             // Save the canvases as a gif (edited), and the images as a gif (original)
             function saveGif(){
+                sortCanvases();
                 const encoder = new GIFEncoder();
                 encoder.setRepeat(0);
                 encoder.setDelay(50);
